@@ -1,0 +1,13 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  convergence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer gfortran
+        run: sudo apt-get update && sudo apt-get install -y gfortran
+      - name: Compiler
+        run: make
+      - name: Test de l'ordre de convergence
+        run: mkdir -p results && OMP_NUM_THREADS=2 make test

@@ -1,0 +1,9 @@
+convergence
+performance
+performance_simple
+performance_gpu
+convergence_debug
+*.mod
+*.o
+performance_gpu_simple
+convergence_gpu
