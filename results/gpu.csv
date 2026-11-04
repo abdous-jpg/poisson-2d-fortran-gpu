@@ -1,0 +1,17 @@
+version,n,ms_par_iteration,mpoints_par_s,acceleration_vs_cpu_double
+"CPU double, 2 threads",513,1.869,139.71,1.0
+"CPU double, 2 threads",1025,7.6142,137.44,1.0
+"CPU double, 2 threads",2049,38.3893,109.15,1.0
+"CPU double, 2 threads",4097,138.8399,120.78,1.0
+"CPU simple, 2 threads",513,1.736,150.42,1.1
+"CPU simple, 2 threads",1025,6.8423,152.95,1.1
+"CPU simple, 2 threads",2049,31.2702,134.0,1.2
+"CPU simple, 2 threads",4097,126.9321,132.11,1.1
+GPU double,513,0.6981,374.05,2.7
+GPU double,1025,0.7598,1377.37,10.0
+GPU double,2049,1.4528,2884.23,26.4
+GPU double,4097,4.7704,3515.22,29.1
+GPU simple,513,0.3923,665.62,4.8
+GPU simple,1025,0.4751,2202.76,16.0
+GPU simple,2049,0.8947,4683.37,42.9
+GPU simple,4097,2.5591,6552.7,54.3

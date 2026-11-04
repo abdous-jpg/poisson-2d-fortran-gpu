@@ -1,6 +1,6 @@
 # Poisson 2D en Fortran — OpenMP et GPU
 
-Solveur de Jacobi en Fortran moderne pour l'équation de Poisson 2D, vérifié sur solution exacte, parallélisé avec OpenMP sur CPU, avec un portage GPU (OpenMP offload) en cours.
+Solveur de Jacobi en Fortran moderne pour l'équation de Poisson 2D, vérifié sur solution exacte, parallélisé avec OpenMP sur CPU et porté sur GPU NVIDIA avec OpenMP offload (jusqu'à ×29 en double précision et ×54 en simple précision sur un GPU T4).
 
 ## Problème
 
@@ -27,7 +27,7 @@ Jacobi est un calcul de stencil limité par la bande passante mémoire : chaque 
 src/precision.F90     # choix simple / double précision
 src/solveur.F90       # initialisation, Jacobi (CPU et GPU), erreur L2
 src/convergence.F90   # étude de convergence + test (échoue si l'ordre n'est pas 2)
-src/performance.F90   # temps par itération à nombre d'itérations fixe
+src/performance.F90   # temps par itération à nombre d'itérations fixe (CPU et GPU)
 scripts/mesures.sh    # campagne de mesures CPU
 scripts/courbes.py    # tracé des courbes
 colab_gpu.ipynb       # compilation et mesures GPU sur Google Colab
@@ -47,7 +47,7 @@ python3 scripts/courbes.py # courbes dans results/
 
 ## Résultats
 
-Mesures sur une machine Linux à 2 cœurs (Intel Xeon 2,8 GHz), gfortran 13.3, `-O3 -march=native`.
+Mesures CPU (sections 1 et 2) sur un Mac à puce Apple Silicon, dans une machine virtuelle Ubuntu 24.04 ARM (QEMU) à 4 cœurs, gfortran, `-O3 -march=native`.
 
 ### 1. Vérification sur solution exacte
 
@@ -62,34 +62,50 @@ L'erreur est divisée par 4 quand h est divisé par 2 : l'ordre 2 est retrouvé.
 
 ![Convergence](results/convergence.png)
 
-### 2. Performance sur CPU (500 itérations)
+### 2. Performance sur CPU (500 itérations, temps par itération)
 
 | précision | threads | n = 513 | n = 1 025 | n = 2 049 |
 |---|---|---|---|---|
-| double | 1 | 1,70 ms/it | 7,14 ms/it | 27,6 ms/it |
-| double | 2 | 0,84 ms/it | 3,76 ms/it | 15,0 ms/it |
-| simple | 1 | 1,44 ms/it | 6,04 ms/it | 24,8 ms/it |
-| simple | 2 | 0,77 ms/it | 3,17 ms/it | 11,8 ms/it |
+| double | 1 | 1,08 ms | 4,41 ms | 17,9 ms |
+| double | 4 | 0,37 ms | 2,34 ms | 11,1 ms |
+| simple | 1 | 1,13 ms | 4,29 ms | 17,3 ms |
+| simple | 4 | 0,45 ms | 2,83 ms | 11,2 ms |
 
-- OpenMP sur 2 cœurs : accélération de 1,8 à 2,0 selon la taille.
-- Simple précision : de 1,1 à 1,3 fois plus rapide que la double. Les réels font 4 octets au lieu de 8, donc moins de données à transférer depuis la mémoire, cohérent avec un calcul limité par la bande passante.
+- **OpenMP sur 4 cœurs : ×2,9 pour n = 513, mais seulement ×1,9 pour n = 1 025 et ×1,6 pour n = 2 049.** Les trois tableaux (u, unew, f) occupent environ 6 Mo pour n = 513 et 100 Mo pour n = 2 049 : sur les grandes grilles, ils doivent être relus en mémoire vive à chaque itération, et les 4 cœurs se partagent la même bande passante mémoire. C'est le comportement attendu d'un calcul limité par la mémoire.
+- **Simple précision : pas de gain mesuré sur cette machine** (temps équivalents, voire plus lents sur 4 threads pour n = 513). À vérifier sur une machine physique et sur GPU, où la réduction des transferts mémoire devrait davantage compter.
 
 ![Performance](results/performance.png)
 
-### 3. GPU — en cours
+### 3. Portage GPU (OpenMP offload)
 
-Le portage GPU est écrit avec OpenMP offload (`make gpu`, compilateur `nvfortran` du NVIDIA HPC SDK) :
+Exécuté sur Google Colab avec un GPU **NVIDIA Tesla T4**, compilateur `nvfortran` 26.9 (NVIDIA HPC SDK), via le notebook `colab_gpu.ipynb`.
 
 - `!$omp target teams distribute parallel do collapse(2)` sur les boucles de calcul ;
-- une région `!$omp target data` garde `u`, `f` et `unew` sur le GPU pendant toutes les itérations. Sans elle, chaque itération recopierait les tableaux entre CPU et GPU, et le transfert coûterait plus cher que le calcul.
+- une région `!$omp target data` garde `u`, `f` et `unew` sur le GPU pendant toutes les itérations : sans elle, chaque itération recopierait les tableaux entre CPU et GPU.
 
-Cette version n'a pas encore été exécutée sur GPU : les résultats seront ajoutés après les tests. Le notebook `colab_gpu.ipynb` installe le compilateur, vérifie l'ordre 2 sur GPU (`make gpu_test`) et compare CPU et GPU sur Google Colab (GPU T4).
+**Vérification :** l'étude de convergence exécutée sur GPU (`make gpu_test`) donne exactement les mêmes erreurs que sur CPU (ordre 1,96 → 1,99). Les lancements de noyaux sont visibles avec `NVCOMPILER_ACC_NOTIFY=1`.
+
+**Performance** (500 itérations, temps par itération ; référence : CPU de la même machine Colab, 2 threads OpenMP) :
+
+| version | n = 513 | n = 1 025 | n = 2 049 | n = 4 097 |
+|---|---|---|---|---|
+| CPU double, 2 threads | 1,87 ms | 7,61 ms | 38,4 ms | 139 ms |
+| CPU simple, 2 threads | 1,74 ms | 6,84 ms | 31,3 ms | 127 ms |
+| GPU double | 0,70 ms (×2,7) | 0,76 ms (×10) | 1,45 ms (×26) | 4,77 ms (×29) |
+| GPU simple | 0,39 ms (×4,8) | 0,48 ms (×16) | 0,89 ms (×43) | 2,56 ms (×54) |
+
+- **Le GPU n'est rentable que sur les grandes grilles.** Pour n = 513, il n'y a pas assez de points pour occuper le GPU, et le temps est dominé par des coûts fixes : lancement de trois noyaux et rapatriement du critère d'arrêt à chaque itération, initialisation du GPU incluse dans la mesure.
+- **Sur GPU, la simple précision est 1,9 fois plus rapide que la double pour n = 4 097**, proche du facteur 2 attendu : Jacobi est limité par la bande passante mémoire, et un réel simple fait 4 octets au lieu de 8. Sur le CPU de Colab, le gain n'est que de 1,1.
+- Débit mémoire estimé pour n = 4 097 : environ 130 à 140 Go/s (environ 40 octets lus ou écrits par point et par itération), soit un peu moins de la moitié des 320 Go/s théoriques du T4.
+
+![CPU vs GPU](results/gpu.png)
 
 ## Limites et suites
 
 - Jacobi converge lentement (O(n²) itérations) : gradient conjugué ou multigrille ensuite.
-- Mesures sur 2 cœurs seulement : scalabilité à étendre sur un cluster.
+- Mesures dans une machine virtuelle à 4 cœurs : scalabilité à confirmer sur un cluster.
 - Simple précision : mesurer aussi la perte de précision sur l'erreur finale.
+- GPU : supprimer la boucle de recopie `u = unew` (échange de pointeurs) pour réduire le trafic mémoire, ne calculer le critère d'arrêt que toutes les k itérations, et exclure l'initialisation du GPU de la mesure.
 
 ## Auteur
 
