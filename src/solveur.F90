@@ -31,12 +31,12 @@ contains
     real(wp), intent(in) :: f(n,n), tol
     integer, intent(out) :: iters
     real(wp), intent(out) :: ecart
-    real(wp), allocatable :: unew(:,:)
+    real(wp), allocatable :: v(:,:)
     real(wp) :: h2
     integer :: i, j, k
 
-    allocate(unew(n,n))
-    unew = u
+    allocate(v(n,n))
+    v = u
     h2 = (1.0_wp / real(n-1, wp))**2
     iters = 0
     ecart = huge(1.0_wp)
@@ -44,11 +44,11 @@ contains
 #ifdef USE_GPU
     ! Les tableaux restent sur le GPU pendant toutes les iterations :
     ! sans cette region, chaque iteration recopierait u et f CPU <-> GPU.
-    !$omp target data map(tofrom: u) map(to: f) map(alloc: unew)
+    !$omp target data map(tofrom: u) map(to: f) map(alloc: v)
     !$omp target teams distribute parallel do collapse(2)
     do j = 1, n
       do i = 1, n
-        unew(i,j) = u(i,j)
+        v(i,j) = u(i,j)
       end do
     end do
 #endif
@@ -61,8 +61,8 @@ contains
 #endif
       do j = 2, n-1
         do i = 2, n-1
-          unew(i,j) = 0.25_wp * (u(i-1,j) + u(i+1,j) + u(i,j-1) + u(i,j+1) + h2 * f(i,j))
-          ecart = max(ecart, abs(unew(i,j) - u(i,j)))
+          v(i,j) = 0.25_wp * (u(i-1,j) + u(i+1,j) + u(i,j-1) + u(i,j+1) + h2 * f(i,j))
+          ecart = max(ecart, abs(v(i,j) - u(i,j)))
         end do
       end do
 #ifdef USE_GPU
@@ -72,7 +72,7 @@ contains
 #endif
       do j = 2, n-1
         do i = 2, n-1
-          u(i,j) = unew(i,j)
+          u(i,j) = v(i,j)
         end do
       end do
       iters = k
@@ -81,7 +81,7 @@ contains
 #ifdef USE_GPU
     !$omp end target data
 #endif
-    deallocate(unew)
+    deallocate(v)
   end subroutine jacobi
 
   ! Erreur L2 discrete (moyenne quadratique sur les noeuds) par rapport a la solution exacte
