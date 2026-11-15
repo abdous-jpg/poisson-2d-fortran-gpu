@@ -13,7 +13,7 @@ Solution exacte : `u(x,y) = sin(πx)·sin(πy)`, donc `f = 2π²·sin(πx)·sin(
 ## Méthode
 
 - Différences finies, stencil à 5 points, grille de n × n points, pas `h = 1/(n-1)`
-- Méthode itérative de Jacobi : `u_new(i,j) = (u(i-1,j) + u(i+1,j) + u(i,j-1) + u(i,j+1) + h² f(i,j)) / 4`
+- Méthode itérative de Jacobi : `v(i,j) = (u(i-1,j) + u(i+1,j) + u(i,j-1) + u(i,j+1) + h² f(i,j)) / 4`
 - Arrêt quand l'écart maximal entre deux itérations passe sous `tol`
 - Erreur de discrétisation attendue en O(h²)
 - Parallélisation CPU : `!$omp parallel do collapse(2)` avec `reduction(max:ecart)`
@@ -71,7 +71,7 @@ L'erreur est divisée par 4 quand h est divisé par 2 : l'ordre 2 est retrouvé.
 | simple | 1 | 1,13 ms | 4,29 ms | 17,3 ms |
 | simple | 4 | 0,45 ms | 2,83 ms | 11,2 ms |
 
-- **OpenMP sur 4 cœurs : ×2,9 pour n = 513, mais seulement ×1,9 pour n = 1 025 et ×1,6 pour n = 2 049.** Les trois tableaux (u, unew, f) occupent environ 6 Mo pour n = 513 et 100 Mo pour n = 2 049 : sur les grandes grilles, ils doivent être relus en mémoire vive à chaque itération, et les 4 cœurs se partagent la même bande passante mémoire. C'est le comportement attendu d'un calcul limité par la mémoire.
+- **OpenMP sur 4 cœurs : ×2,9 pour n = 513, mais seulement ×1,9 pour n = 1 025 et ×1,6 pour n = 2 049.** Les trois tableaux (u, v, f) occupent environ 6 Mo pour n = 513 et 100 Mo pour n = 2 049 : sur les grandes grilles, ils doivent être relus en mémoire vive à chaque itération, et les 4 cœurs se partagent la même bande passante mémoire. C'est le comportement attendu d'un calcul limité par la mémoire.
 - **Simple précision : pas de gain mesuré sur cette machine** (temps équivalents, voire plus lents sur 4 threads pour n = 513). À vérifier sur une machine physique et sur GPU, où la réduction des transferts mémoire devrait davantage compter.
 
 ![Performance](results/performance.png)
@@ -81,7 +81,7 @@ L'erreur est divisée par 4 quand h est divisé par 2 : l'ordre 2 est retrouvé.
 Exécuté sur Google Colab avec un GPU **NVIDIA Tesla T4**, compilateur `nvfortran` 26.9 (NVIDIA HPC SDK), via le notebook `colab_gpu.ipynb`.
 
 - `!$omp target teams distribute parallel do collapse(2)` sur les boucles de calcul ;
-- une région `!$omp target data` garde `u`, `f` et `unew` sur le GPU pendant toutes les itérations : sans elle, chaque itération recopierait les tableaux entre CPU et GPU.
+- une région `!$omp target data` garde `u`, `f` et `v` sur le GPU pendant toutes les itérations : sans elle, chaque itération recopierait les tableaux entre CPU et GPU.
 
 **Vérification :** l'étude de convergence exécutée sur GPU (`make gpu_test`) donne exactement les mêmes erreurs que sur CPU (ordre 1,96 → 1,99). Les lancements de noyaux sont visibles avec `NVCOMPILER_ACC_NOTIFY=1`.
 
@@ -105,7 +105,7 @@ Exécuté sur Google Colab avec un GPU **NVIDIA Tesla T4**, compilateur `nvfortr
 - Jacobi converge lentement (O(n²) itérations) : gradient conjugué ou multigrille ensuite.
 - Mesures dans une machine virtuelle à 4 cœurs : scalabilité à confirmer sur un cluster.
 - Simple précision : mesurer aussi la perte de précision sur l'erreur finale.
-- GPU : supprimer la boucle de recopie `u = unew` (échange de pointeurs) pour réduire le trafic mémoire, ne calculer le critère d'arrêt que toutes les k itérations, et exclure l'initialisation du GPU de la mesure.
+- GPU : supprimer la boucle de recopie `u = v` (échange de pointeurs) pour réduire le trafic mémoire, ne calculer le critère d'arrêt que toutes les k itérations, et exclure l'initialisation du GPU de la mesure.
 
 ## Auteur
 
