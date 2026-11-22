@@ -72,7 +72,7 @@ L'erreur est divisée par 4 quand h est divisé par 2 : l'ordre 2 est retrouvé.
 | simple | 4 | 0,45 ms | 2,83 ms | 11,2 ms |
 
 - **OpenMP sur 4 cœurs : ×2,9 pour n = 513, mais seulement ×1,9 pour n = 1 025 et ×1,6 pour n = 2 049.** Les trois tableaux (u, v, f) occupent environ 6 Mo pour n = 513 et 100 Mo pour n = 2 049 : sur les grandes grilles, ils doivent être relus en mémoire vive à chaque itération, et les 4 cœurs se partagent la même bande passante mémoire. C'est le comportement attendu d'un calcul limité par la mémoire.
-- **Simple précision : pas de gain mesuré sur cette machine** (temps équivalents, voire plus lents sur 4 threads pour n = 513). À vérifier sur une machine physique et sur GPU, où la réduction des transferts mémoire devrait davantage compter.
+- **Simple précision : pas de gain mesuré sur cette machine** (temps équivalents, voire plus lents sur 4 threads pour n = 513). Sur GPU en revanche, la simple précision va 1,9 fois plus vite (voir la section 3).
 
 ![Performance](results/performance.png)
 
